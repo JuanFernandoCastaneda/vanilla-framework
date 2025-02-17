@@ -479,9 +479,20 @@
   }
 
   function fixScroll() {
-    const titleId = window.location.hash;
+    let titleId = window.location.hash;
     if (titleId) {
-      const title = document.querySelector(titleId);
+      titleId = titleId.substring(1); // Removes the #
+      let title = document.getElementById(titleId);
+      if (title == null) {
+        // If there is no element with that id, maybe it is because there is a status tag attatched to it
+        const matchingIdElems = Array.from(document.querySelectorAll(`[id^="${titleId}-"]`));
+        const elemWithStatus = matchingIdElems.filter((elem) => {
+          const labeledChilds = Array.from(elem.querySelectorAll(`[class^="p-status-label--"],[class*=" p-status-label--"]`));
+          const labels = labeledChilds.map((childElem) => childElem.innerText.toLowerCase());
+          return elem.id === titleId + '-' + labels.join('-');
+        });
+        title = elemWithStatus[0];
+      }
       title.scrollIntoView();
     }
   }
