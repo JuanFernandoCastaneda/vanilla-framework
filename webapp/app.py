@@ -8,6 +8,7 @@ import yaml
 import urllib
 import markupsafe
 import mistune
+import re
 
 # Packages
 import talisker.requests
@@ -263,14 +264,14 @@ def class_reference(component=None):
         flask.render_template("_layouts/_class-reference.html", data=data)
     )
 
-def status_label(status):
-    variants = {
-        "new": "positive",
-        "updated": "information",
-        "deprecated":"negative",
-        "in progress": "warning",
-    }
+variants = {
+    "new": "positive",
+    "updated": "information",
+    "deprecated":"negative",
+    "in progress": "warning",
+}
 
+def status_label(status):    
     return markupsafe.Markup(
         flask.render_template("_layouts/_status-label.html", status=status, variant=variants.get(status.lower(), "information"))
     )
@@ -279,9 +280,19 @@ def status_label(status):
 def utility_processor():
     return {"class_reference": class_reference, "image": image_template, "status": status_label}
 
+# This new representation only works when statuses are sets of words separated with blank spaces. Other symbols may break it; check TemplateFinder Renderer to know which ones. 
+class TemplateFinderStatusTags(TemplateFinder):
+    def dispatch_request(self, *args, **kwargs):
+        inherited_result = super().dispatch_request(*args, **kwargs) 
+        labeled_headers = [result[0] for result in re.findall(r"(<(h\d+).*?>.*?(<span.*?>.*</span>).*?</\2>)", inherited_result)]
+        for header in labeled_headers:
+            statuses = {"-".join(status.split(" ")): "" for status in re.findall(r"<span.*?>(.*?)</span>", header)} # Dictionary to preserve key insertion order
+            label = ("-" + "-".join(statuses.keys())).lower()
+            unlabeled_header = header.replace(label, "")
+            inherited_result = inherited_result.replace(header, unlabeled_header)
+        return inherited_result
 
-template_finder_view = TemplateFinder.as_view("template_finder")
-
+template_finder_view = TemplateFinderStatusTags.as_view("template_finder")
 
 @app.route("/docs/examples")
 def examples_index():
